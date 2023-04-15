@@ -77,7 +77,9 @@ class downloadCsvView(FormView):
     def form_valid(self, form):
         username = form.cleaned_data["username"]
         password = form.cleaned_data["password"]
-        scrape.scrapeTracab(username, password, settings.BASE_DIR)
+        #scrape.scrapeTracab(username, password, settings.BASE_DIR)
+        scrape.concatenate_csvs(settings.BASE_DIR)
+        scrape.add_transfermarkt(settings.BASE_DIR)
         return super().form_valid(form)
 
 # class PdfFileCreateView(CreateView):
