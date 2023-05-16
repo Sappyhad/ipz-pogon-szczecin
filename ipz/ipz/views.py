@@ -28,26 +28,17 @@ class CsvScraperForm(forms.Form):
 
 
 
-# def download_csv(sender, instance, **kwargs):
-#     # if created:
-#     try:
-#         print(settings.BASE_DIR)
-#         path_norm = os.path.normpath(instance.pdf.url[1:])
-#         pdf_path = os.path.join(settings.BASE_DIR, path_norm)
-#         print("Pdf: ", pdf_path)
-#         csv_path = 'csvs\\' + path_norm.split("\\")[-1].split('.')[0]
-#         csv_path = os.path.join(settings.BASE_DIR, csv_path)
-#         print("csv_path: ", csv_path)
-#         csv_file_path = kw.convert(pdf_path, csv_path)
-#         print("file_path: ", csv_file_path)
-#         csv_file_name = csv_file_path.split("\\")[-1]
-#         print("file_name: ", csv_file_name)
-#         response = FileResponse(open(csv_file_path, 'rb'), as_attachment=True)
-#         response['Content-Disposition'] = 'attachment; filename="{}"'.format(csv_file_name)
-#         response['Content-Type'] = "application/csv"
-#         return response
-#     except Exception as e:
-#         return JsonResponse({'error': str(e)}, status=400)
+def download_csv():
+    # if created:
+    try:
+        csv_name = 'Tracab_Data_Concatenated.csv'
+        csv_path = os.path.join(settings.BASE_DIR, 'csvs', csv_name)
+        response = FileResponse(open(csv_path, 'rb'), as_attachment=True)
+        response['Content-Disposition'] = 'attachment; filename="{}"'.format(csv_name)
+        response['Content-Type'] = "application/csv"
+        return response
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
 
 # class pdfView(TemplateView):
 #     template_name = "ipz/pdf.html"
@@ -77,10 +68,11 @@ class downloadCsvView(FormView):
     def form_valid(self, form):
         username = form.cleaned_data["username"]
         password = form.cleaned_data["password"]
-        #scrape.scrapeTracab(username, password, settings.BASE_DIR)
+        scrape.scrapeTracab(username, password, settings.BASE_DIR)
         scrape.concatenate_csvs(settings.BASE_DIR)
         scrape.add_transfermarkt(settings.BASE_DIR)
-        return super().form_valid(form)
+        response = download_csv()
+        return response
 
 # class PdfFileCreateView(CreateView):
 #     model = PdfFile
