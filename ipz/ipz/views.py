@@ -1,8 +1,9 @@
-from django.shortcuts import render
+from typing import Any
+from django.shortcuts import redirect, render
 from django.views.generic import CreateView, TemplateView, FormView
 from .models import PdfFile
 from django.urls import reverse_lazy
-from django import forms
+from django import forms, http
 from django.http import HttpResponseRedirect
 from .scripts import konwerter as kw
 from .scripts import scrape_csv as scrape
@@ -59,20 +60,41 @@ def download_csv():
         
 class successView(TemplateView):
     template_name ="ipz/success.html"
-
-class downloadCsvView(FormView):
-    template_name = "ipz/dcv.html"
-    form_class = CsvScraperForm
-    success_url = reverse_lazy('success')
-
-    def form_valid(self, form):
-        username = form.cleaned_data["username"]
-        password = form.cleaned_data["password"]
+    
+    def dispatch(self, request, *args, **kwargs):
+        #response = super().dispatch(request, *args, *kwargs)
+        username = self.request.session.get('username')
+        password = self.request.session.get('password')
+        print(username)
+        print(password)
         scrape.scrapeTracab(username, password, settings.BASE_DIR)
         scrape.concatenate_csvs(settings.BASE_DIR)
         scrape.add_transfermarkt(settings.BASE_DIR)
         response = download_csv()
         return response
+
+class generateView(TemplateView):
+    template_name = "ipz/generate.html"
+    # def dispatch(self, request, *args, **kwargs):
+    #     response = super().dispatch(request, *args, *kwargs)
+    #     return redirect(reverse_lazy("success"))
+
+class downloadCsvView(FormView):
+    template_name = "ipz/dcv.html"
+    form_class = CsvScraperForm
+    success_url = reverse_lazy('generate')
+
+    def form_valid(self, form):
+        username = form.cleaned_data["username"]
+        password = form.cleaned_data["password"]
+        try:
+            scrape.check_tracab_user(username, password)
+        except:
+            return redirect(reverse_lazy("downloadCsvView"))
+        print("kupa")
+        self.request.session['username'] = username
+        self.request.session['password'] = password
+        return redirect(self.get_success_url())
 
 # class PdfFileCreateView(CreateView):
 #     model = PdfFile

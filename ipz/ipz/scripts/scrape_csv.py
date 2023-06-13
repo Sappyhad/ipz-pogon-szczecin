@@ -8,9 +8,31 @@ from googlesearch import search
 import datetime
 import re
 
-# TODO: Tworzenie folderów danego roku - wypełnianie folderów danego roku zipami, sprawdzanie czy w danym roku są wszystkie zipy zanim pobierze się brakujące
+
 date_dict = dict()
 queue_dict = dict()
+
+def check_tracab_user(username: str, password: str):
+    request_url = 'https://portal.tracab.com/login'
+    with requests.Session() as session:
+        # dostawanie sie do tracaba
+        get_url = session.get(request_url)
+        HTML = BeautifulSoup(get_url.text, 'html.parser')
+        csrfmiddlewaretoken = HTML.find_all('input')[0]['value']
+        print(csrfmiddlewaretoken)
+        payload = {
+            'identity': username,
+            'password': password,
+            'csrf_test_name': csrfmiddlewaretoken
+        }
+        headers = {
+            'Referer': request_url
+        }
+        login_request = session.post(request_url,payload, headers=headers)
+        league_results = session.get('https://portal.tracab.com/user/results/Ekstraklasa/2020')
+        if len(league_results.text) == 0:
+            raise Exception
+
 def get_transfermarkt_url(player_name):
     try:
         first_name = player_name.split(" ")[0]
@@ -50,47 +72,92 @@ def scrapeTracab(username: str, password: str, base_dir):
         # wyliczanie roku
         today = datetime.date.today()
         year = today.year
-        for i in range(year-3, year):
-            print(i)
-            league_results = session.get(f'https://portal.tracab.com/user/results/Ekstraklasa/{i}')
-            HTML = BeautifulSoup(league_results.text, 'html.parser')
-            weeks = HTML.find_all('a', {'class': 'mwTabs'})[0]['data-mw']
-            game_ids = HTML.find_all('td', string=re.compile('Poland.'))
-            download_link = HTML.select('a[href*=download]')
-            # tworzenie linku do pobierania
-            for a in download_link:
-                if 'default' in a['data-link'].lower() and 'false' not in a['data-link'].lower():
-                    data_link = a['data-link']
-            # pobieranie id gry i dodawnie daty gry
-            for j in game_ids:
-                gid = j.text.split(' ')[1]
-                gid = gid.strip('(')
-                gid = gid.strip(')')
-                x = HTML.select(f'[matchid="{gid}"]')[0]
-                game_date = x.find('span').parent
-                date_dict[gid] = game_date.text
-            # tworzenie folderu danego roku ekstraklasy
-            dir_path = os.path.join(base_dir, 'ipz', 'zips', f'Ekstraklasa_{i}')
-            if not os.path.exists(dir_path):
-                os.mkdir(dir_path)
-            for j in range(1, int(weeks)+1):
-                mw_div = HTML.find('div',{'id': f'mw-{j}'})
-                td_gids = mw_div.select('[matchid]')
-                for k in td_gids:
-                    gid = k.get('matchid')
-                    queue_dict[gid] = [j,i]
+        league_results = session.get(f'https://portal.tracab.com/user/results/Ekstraklasa/{year}')
+        print(league_results.ok)
+        if league_results.ok:
+            for i in range(year-2, year+1):
+                print(i)
+                league_results = session.get(f'https://portal.tracab.com/user/results/Ekstraklasa/{i}')
+                HTML = BeautifulSoup(league_results.text, 'html.parser')
+                weeks = HTML.find_all('a', {'class': 'mwTabs'})[0]['data-mw']
+                game_ids = HTML.find_all('td', string=re.compile('Poland.'))
+                download_link = HTML.select('a[href*=download]')
+                # tworzenie linku do pobierania
+                for a in download_link:
+                    if 'default' in a['data-link'].lower() and 'false' not in a['data-link'].lower():
+                        data_link = a['data-link']
+                # pobieranie id gry i dodawnie daty gry
+                for j in game_ids:
+                    gid = j.text.split(' ')[1]
+                    gid = gid.strip('(')
+                    gid = gid.strip(')')
+                    x = HTML.select(f'[matchid="{gid}"]')[0]
+                    game_date = x.find('span').parent
+                    date_dict[gid] = game_date.text
+                # tworzenie folderu danego roku ekstraklasy
+                dir_path = os.path.join(base_dir, 'ipz', 'zips', f'Ekstraklasa_{i}')
+                if not os.path.exists(dir_path):
+                    os.mkdir(dir_path)
+                for j in range(1, int(weeks)+1):
+                    mw_div = HTML.find('div',{'id': f'mw-{j}'})
+                    td_gids = mw_div.select('[matchid]')
+                    for k in td_gids:
+                        gid = k.get('matchid')
+                        queue_dict[gid] = [j,i]
 
-                # sprawdzanie których zipów brakuje
-                zip_name = f'week_{j}.zip'
-                zip_path = os.path.join(dir_path, zip_name)
-                if not os.path.exists(zip_path):
-                    # tworzenie linku do danej kolejki jeśli zip nie istnieje
-                    week_link = ''
-                    week_link = data_link.replace("{matchWeekValue}", f"{j}")
-                    week_link = 'https://portal.tracab.com' + week_link
-                    # pobieranie zipa
-                    download_request = session.get(week_link, allow_redirects=True)
-                    open(zip_path, 'wb').write(download_request.content)
+                    # sprawdzanie których zipów brakuje
+                    zip_name = f'week_{j}.zip'
+                    zip_path = os.path.join(dir_path, zip_name)
+                    if not os.path.exists(zip_path):
+                        # tworzenie linku do danej kolejki jeśli zip nie istnieje
+                        week_link = ''
+                        week_link = data_link.replace("{matchWeekValue}", f"{j}")
+                        week_link = 'https://portal.tracab.com' + week_link
+                        # pobieranie zipa
+                        download_request = session.get(week_link, allow_redirects=True)
+                        open(zip_path, 'wb').write(download_request.content)
+        else:
+            for i in range(year-3, year):
+                print(i)
+                league_results = session.get(f'https://portal.tracab.com/user/results/Ekstraklasa/{i}')
+                HTML = BeautifulSoup(league_results.text, 'html.parser')
+                weeks = HTML.find_all('a', {'class': 'mwTabs'})[0]['data-mw']
+                game_ids = HTML.find_all('td', string=re.compile('Poland.'))
+                download_link = HTML.select('a[href*=download]')
+                # tworzenie linku do pobierania
+                for a in download_link:
+                    if 'default' in a['data-link'].lower() and 'false' not in a['data-link'].lower():
+                        data_link = a['data-link']
+                # pobieranie id gry i dodawnie daty gry
+                for j in game_ids:
+                    gid = j.text.split(' ')[1]
+                    gid = gid.strip('(')
+                    gid = gid.strip(')')
+                    x = HTML.select(f'[matchid="{gid}"]')[0]
+                    game_date = x.find('span').parent
+                    date_dict[gid] = game_date.text
+                # tworzenie folderu danego roku ekstraklasy
+                dir_path = os.path.join(base_dir, 'ipz', 'zips', f'Ekstraklasa_{i}')
+                if not os.path.exists(dir_path):
+                    os.mkdir(dir_path)
+                for j in range(1, int(weeks)+1):
+                    mw_div = HTML.find('div',{'id': f'mw-{j}'})
+                    td_gids = mw_div.select('[matchid]')
+                    for k in td_gids:
+                        gid = k.get('matchid')
+                        queue_dict[gid] = [j,i]
+
+                    # sprawdzanie których zipów brakuje
+                    zip_name = f'week_{j}.zip'
+                    zip_path = os.path.join(dir_path, zip_name)
+                    if not os.path.exists(zip_path):
+                        # tworzenie linku do danej kolejki jeśli zip nie istnieje
+                        week_link = ''
+                        week_link = data_link.replace("{matchWeekValue}", f"{j}")
+                        week_link = 'https://portal.tracab.com' + week_link
+                        # pobieranie zipa
+                        download_request = session.get(week_link, allow_redirects=True)
+                        open(zip_path, 'wb').write(download_request.content)
                 
 
 def concatenate_csvs(base_dir):
@@ -187,3 +254,4 @@ def add_transfermarkt(base_dir):
 
 #scrapeTracab('p.jasinski@pogonszczecin.pl', 'Password')
 #print(get_transfermarkt_url("piotr wlazło"))
+#check_tracab_user('p.jasski', 'Password')

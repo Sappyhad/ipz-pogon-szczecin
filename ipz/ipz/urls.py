@@ -21,5 +21,6 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     #path("pdf/",views.pdfView.as_view(), name="pdf"),
     path("success/", views.successView.as_view(), name="success"),
-    path("", views.downloadCsvView.as_view(), name="downloadCsvView")
+    path("", views.downloadCsvView.as_view(), name="downloadCsvView"),
+    path("generate/", views.generateView.as_view(), name="generate")
 ]
